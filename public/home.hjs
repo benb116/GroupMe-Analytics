@@ -1,0 +1,86 @@
+<!doctype html>
+<html ng-app="GMAApp">
+
+<head>
+	<title>GMA</title>
+	<meta name="description" content="PennCourseSearch is a web app designed to help Penn students find courses and make schedules. Includes one-click scheduling, Penn Course Review integration, filters for double-counting requirements, and more.">
+	<meta charset="UTF-8">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.4/angular.min.js"></script>
+</head>
+
+<body ng-controller="GMAController">
+	<a id="loginbutton" href="/login">LOGIN</a>
+	Home
+	<br>
+	Groups:
+
+	<ul>
+		<li ng-repeat="g in groups">
+			<span ng-click="getGroup(g.group_id)">{[{ g.name }]}</span>
+		</li>
+	</ul>
+	<br>
+	Data:
+	<span ng-if="statsloading">Loading</span>
+
+	<ul>
+		<li ng-repeat="u in stats | orderBy:'-numLikes'">
+			{[{ u.userName }]} - Comments: {[{ u.numComments }]}, Likes: {[{ u.numLikes }]}
+		</li>
+	</ul>
+
+</body>
+
+<script type="text/javascript">
+	var AT = localStorage.getItem('GMAT');
+	console.log(AT)
+	if (AT) {
+		$('#loginbutton').hide();
+	}
+
+	var GMA = angular.module('GMAApp', []);
+
+	GMA.config(function($interpolateProvider) {
+	  $interpolateProvider.startSymbol('{[{');
+	  $interpolateProvider.endSymbol('}]}');
+	});
+
+	GMA.controller('GMAController', function ($scope, $http){
+
+		$scope.AT = localStorage.getItem('GMAT');
+		$scope.statsloading = false;
+		if (AT) {
+			$http({
+			  method: 'GET',
+			  url: '/api/listgroups/?access_token='+$scope.AT
+			}).then(function successCallback(response) {
+				$scope.groups = response.data;
+				console.log($scope.groups)
+			    // this callback will be called asynchronously
+			    // when the response is available
+			  }, function errorCallback(response) {
+			    // called asynchronously if an error occurs
+			    // or server returns response with an error status.
+			  });
+		}
+		$scope.getGroup = function(gID) {
+			$scope.statsloading = true;
+			$http({
+			  method: 'GET',
+			  url: '/api/getmessages/?access_token='+$scope.AT+'&gID='+gID
+			}).then(function successCallback(response) {
+				$scope.stats = response.data;
+				$scope.statsloading = false;
+				console.log($scope.stats)
+			    // this callback will be called asynchronously
+			    // when the response is available
+			  }, function errorCallback(response) {
+			    // called asynchronously if an error occurs
+			    // or server returns response with an error status.
+			  });
+		}
+	});
+</script>
+
+</html>

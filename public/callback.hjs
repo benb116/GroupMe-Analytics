@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Callback</title>
+</head>
+<body>
+	<span id="AT" style="display:none;">{{ GMAT }}</span>
+</body>
+
+
+<script type="text/javascript">
+	var AT = document.getElementById('AT').innerHTML;
+	localStorage.setItem('GMAT', AT);
+	window.location.replace('/home')
+</script>
+
+</html>
