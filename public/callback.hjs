@@ -11,7 +11,8 @@
 <script type="text/javascript">
 	var AT = document.getElementById('AT').innerHTML;
 	localStorage.setItem('GMAT', AT);
-	window.location.replace('/home')
+	localStorage.setItem('ATtimestamp', Date.now())
+	window.location.replace('/')
 </script>
 
 </html>

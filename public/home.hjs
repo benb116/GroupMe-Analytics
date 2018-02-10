@@ -7,35 +7,92 @@
 	<meta charset="UTF-8">
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
 	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.4/angular.min.js"></script>
+	<style type="text/css">
+		#myProgress {
+		    width: 100%;
+		    background-color: grey;
+		}
+		#myBar {
+		    width: 1%;
+		    height: 30px;
+		    background-color: green;
+		}
+		.activeSort {
+			color: blue;
+		}
+	</style>
 </head>
 
 <body ng-controller="GMAController">
 	<a id="loginbutton" href="/login">LOGIN</a>
 	Home
 	<br>
-	Groups:
+	<div style="display:inline-block;float:left">	
+		Groups:
 
-	<ul>
-		<li ng-repeat="g in groups">
-			<span ng-click="getGroup(g.group_id)">{[{ g.name }]}</span>
-		</li>
-	</ul>
-	<br>
-	Data:
-	<span ng-if="statsloading">Loading</span>
+		<ul>
+			<li ng-repeat="g in groups">
+				<span ng-click="getGroup($index, g.messages.count)" style="cursor:pointer;">{[{ g.name }]} - {[{ g.messages.count }]} </span>
+			</li>
+		</ul>
+		<br>
+	</div>
+	<div style="display:inline-block;float:left">	
+		Data:
+		<span ng-if="statsloading">Loading</span>
+		<div ng-show="statsloading" id="myProgress">
+		  <div id="myBar"></div>
+		</div>
 
-	<ul>
-		<li ng-repeat="u in stats | orderBy:'-numLikes'">
-			{[{ u.userName }]} - Comments: {[{ u.numComments }]}, Likes: {[{ u.numLikes }]}
-		</li>
-	</ul>
-
+		<table>
+			<tr>
+				<th ng-click="changeSort(0)" style="cursor:pointer;" ng-class="{'activeSort': (statSort === 'userName' || statSort == '-userName')}"	>Name</th>
+				<th ng-click="changeSort(1)" style="cursor:pointer;" ng-class="{'activeSort': (statSort === 'numComments' || statSort == '-numComments')}"># Comments</th>
+				<th ng-click="changeSort(2)" style="cursor:pointer;" ng-class="{'activeSort': (statSort === 'numLikes' || statSort == '-numLikes')}"	># Likes received</th>
+				<th ng-click="changeSort(3)" style="cursor:pointer;" ng-class="{'activeSort': (statSort === 'LPC' || statSort == '-LPC')}"		># LPC</th>
+				<th ng-click="changeSort(4)" style="cursor:pointer;" ng-class="{'activeSort': (statSort === 'Liked' || statSort == '-Liked')}"		># Likes Given</th>
+			</tr>
+			<tr ng-repeat="u in stats | orderBy:statSort">
+				<td>{[{ u.userName }]}</td>
+				<td>{[{ u.numComments }]}</td>
+				<td>{[{ u.numLikes }]}</td>
+				<td>{[{ u.LPC | number: 2 }]}</td>
+				<td>{[{ (u.Liked) }]}</td>
+			</tr>
+		</table>
+	</div>
 </body>
 
 <script type="text/javascript">
+	function move(period) {
+	  var elem = document.getElementById("myBar");   
+	  var width = 1;
+	  var id = setInterval(frame, (period/100));
+	  function frame() {
+	    if (width >= 100) {
+	      clearInterval(id);
+	    } else {
+	      width++; 
+	      elem.style.width = width + '%'; 
+	    }
+	  }
+	}
+
+	function newUserStat(uID, uName) {
+		this.userID = uID;
+		this.userName = uName;
+		this.numComments = 0;
+		this.numLikes = 0;
+		this.Liked = 0;
+	}
+</script>
+
+<script type="text/javascript">
 	var AT = localStorage.getItem('GMAT');
-	console.log(AT)
-	if (AT) {
+	var ts = localStorage.getItem('ATtimestamp');
+	var now = Date.now();
+	var one_month = 2592000000;
+	if (AT && (now - one_month < ts)) {
 		$('#loginbutton').hide();
 	}
 
@@ -50,10 +107,14 @@
 
 		$scope.AT = localStorage.getItem('GMAT');
 		$scope.statsloading = false;
+		$scope.statSort = '-numLikes'
 		if (AT) {
 			$http({
 			  method: 'GET',
-			  url: '/api/listgroups/?access_token='+$scope.AT
+			  url: '/api/listgroups/',
+			  headers: {
+			  	'AccessToken': AT
+			  }
 			}).then(function successCallback(response) {
 				$scope.groups = response.data;
 				console.log($scope.groups)
@@ -64,21 +125,55 @@
 			    // or server returns response with an error status.
 			  });
 		}
-		$scope.getGroup = function(gID) {
+		$scope.getGroup = function(gindex, numMess) {
+			var gID = $scope.groups[gindex].group_id;
+			$scope.currentGroup = gID;
 			$scope.statsloading = true;
+			move(numMess*1.5);
 			$http({
 			  method: 'GET',
-			  url: '/api/getmessages/?access_token='+$scope.AT+'&gID='+gID
+			  url: '/api/getmessages/?gID='+gID,
+			  headers: {
+			  	'AccessToken': AT
+			  }
 			}).then(function successCallback(response) {
 				$scope.stats = response.data;
 				$scope.statsloading = false;
-				console.log($scope.stats)
+				$scope.currentGroup = gID;
+				var groupMembers = $scope.groups[gindex].members;
+				console.log(groupMembers)
+				var statMembers = $scope.stats.map(function(u) {return u.user_id});
+				for (mem in groupMembers) {
+					if (statMembers.indexOf(groupMembers[mem].user_id) < 0) {
+						var n = new newUserStat(groupMembers[mem].user_id, groupMembers[mem].nickname);
+						$scope.stats.push(n)
+					}
+				}
+				for (member in $scope.stats) {
+					if (!$scope.stats[member].user_name){
+						var findMember = groupMembers.filter(function(u) {return u.user_id === $scope.stats[member].user_id})
+						if (findMember[0]) {
+							$scope.stats[member].userName = findMember[0].nickname;
+						}
+					}
+					$scope.stats[member].LPC = (($scope.stats[member].numLikes / $scope.stats[member].numComments) || 0)
+				}
+
+				// console.log($scope.stats)
 			    // this callback will be called asynchronously
 			    // when the response is available
 			  }, function errorCallback(response) {
 			    // called asynchronously if an error occurs
 			    // or server returns response with an error status.
 			  });
+		}
+		$scope.changeSort = function(ind) {
+			var options = ['-userName','-numComments','-numLikes','-LPC','-Liked'];
+			var setto = options[ind];
+			if ($scope.statSort === setto) {
+				setto = setto.substr(1);
+			}
+			$scope.statSort = setto;
 		}
 	});
 </script>

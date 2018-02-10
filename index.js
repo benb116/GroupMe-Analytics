@@ -36,7 +36,6 @@ app.get('/login', function(req, res) {
 
 app.get('/callback/', function(req, res) {
 	var AT = req.query.access_token;
-	console.log(AT)
 	return res.render('callback', {GMAT: AT})
 });
 
@@ -47,17 +46,14 @@ app.get('/home/', function(req, res) {
 
 // Handle main page requests
 app.get('/api/listgroups/', function(req, res) {
-	var AT = req.query.access_token;
-	var gID = req.query.gID;
-	console.log(gID)
+	var AT = req.get('AccessToken');
 	API.Groups.index(AT, function(err,ret) {
-		console.log(ret)
 		return res.send(ret)
 	})
 });
 // Handle main page requests
 app.get('/api/getmessages/', function(req, res) {
-	var AT = req.query.access_token;
+	var AT = req.get('AccessToken');
 	var gID = req.query.gID;
 	var messages = [];
 	var lastID;
@@ -75,13 +71,10 @@ function fetchMessages(res, AT, gID, lastID, messageArray) {
 		messageArray = messageArray.concat(minifyMessages(ret.messages));
 		var max = ret.messages.length;
 		lastID = ret.messages[max-1].id;
-		console.log(lastID, messageArray.length)
 		if (messageArray.length < (ret.count - 1)) {
 			fetchMessages(res, AT, gID, lastID, messageArray);
 		} else {
-			console.log('done')
-			console.log(messageArray[0])
-			return res.send(generateStats(messageArray));
+			res.send(generateStats(messageArray));
 		}
 	})
 }
@@ -100,7 +93,14 @@ function generateStats(messages) {
 
     var stats = {};
     stats = {};
-	var users = messages.map(function(m) {return m.user_id;}).filter(function(elem, index, self) {
+	// var users = messages.map(function(m) {return m.user_id;}).filter(function(elem, index, self) {
+ //        return index == self.indexOf(elem);
+ //    });
+	var us = [];
+	for (m in messages) {
+		us = us.concat(messages[m].user_id).concat(messages[m].favorited_by)
+	}
+	var users = us.filter(function(elem, index, self) {
         return index == self.indexOf(elem);
     });
     for (u in users) {
@@ -110,12 +110,22 @@ function generateStats(messages) {
     	for (c in user_comments) {
     		sumlikes += user_comments[c].favorited_by.length;
     	}
-    	var user_name = user_comments[0].name;
+    	var user_name;
+    	if (user_comments[0]) {
+    		user_name = user_comments[0].name;
+    	} else {
+    		user_name = null;
+    	}
+    	var user_liked = messages.filter(function(m) {
+    		return (m.favorited_by.indexOf(users[u]) > -1)
+    	}).length;
 
     	stats[users[u]].numComments = user_comments.length;
     	stats[users[u]].numLikes = sumlikes;
+    	// stats[users[u]].LPC = sumlikes / user_comments.length;
+    	stats[users[u]].Liked = user_liked;
     	stats[users[u]].userName = user_name;
-    	stats[users[u]].user_id = user_comments[0].user_id;
+    	stats[users[u]].user_id = users[u];
     }
 
     var arrResp = [];
@@ -126,9 +136,3 @@ function generateStats(messages) {
 
     return arrResp;
 }
-
-API.Users.me(config.GMToken, function(err,ret) {
-  if (!err) {
-    console.log("Your user id is", ret.id, "and your name is", ret.name);        
-  }
-});
